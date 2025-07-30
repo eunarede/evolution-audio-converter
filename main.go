@@ -564,49 +564,15 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 		url = strings.TrimSuffix(cloudflareAPIURL, "/") + "/@cf/openai/whisper"
 	}
 
-	// O Cloudflare Workers AI precisa do áudio em formato compatível
-	// Vamos salvar como arquivo temporário e enviar como multipart/form-data
-	tempFile, err := os.CreateTemp("", "audio-cf-*.ogg")
+	// O Cloudflare AI aceita dados de áudio diretamente como binary
+	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	defer os.Remove(tempFile.Name())
-
-	if _, err := tempFile.Write(audioData); err != nil {
-		return nil, err
-	}
-	tempFile.Close()
-
-	// Criar multipart form data para o Cloudflare
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// Adicionar o arquivo de áudio
-	file, err := os.Open(tempFile.Name())
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	part, err := writer.CreateFormFile("file", "audio.ogg")
-	if err != nil {
-		return nil, err
-	}
-	_, err = io.Copy(part, file)
-	if err != nil {
-		return nil, err
-	}
-
-	writer.Close()
-
-	req, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		return nil, err
-	}
-
+	
 	// Headers necessários para o Cloudflare AI
 	req.Header.Set("Authorization", "Bearer "+cloudflareAPIKey)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", "application/octet-stream")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
