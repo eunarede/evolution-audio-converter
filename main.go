@@ -526,12 +526,8 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 	req.Header.Set("Authorization", "Bearer "+cloudflareAPIKey)
 	req.Header.Set("Content-Type", "application/octet-stream")
 
-	// Adicionar parâmetros de idioma se especificado
-	if language != "" {
-		q := req.URL.Query()
-		q.Add("language", language)
-		req.URL.RawQuery = q.Encode()
-	}
+	// Note: Cloudflare Workers AI @cf/openai/whisper não suporta parâmetro language
+	// O modelo detecta automaticamente o idioma do áudio
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
