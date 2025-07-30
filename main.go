@@ -410,7 +410,6 @@ func transcribeWithOpenAI(audioData []byte, language string) (*TranscriptionResu
 		Provider: "openai",
 	}, nil
 }
-}
 
 func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult, error) {
 	if groqAPIKey == "" {
@@ -491,7 +490,6 @@ func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult
 		Text:     result.Text,
 		Provider: "groq",
 	}, nil
-}
 }
 
 func transcribeWithCloudflare(audioData []byte, language string) (*TranscriptionResult, error) {
@@ -594,7 +592,6 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 	}
 
 	return transcriptionResult, nil
-}
 }
 
 func uploadToS3(data []byte, format string) (string, error) {
