@@ -567,9 +567,9 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 	// O Cloudflare AI aceita dados de áudio diretamente como binary
 	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	
+
 	// Headers necessários para o Cloudflare AI
 	req.Header.Set("Authorization", "Bearer "+cloudflareAPIKey)
 	req.Header.Set("Content-Type", "application/octet-stream")
