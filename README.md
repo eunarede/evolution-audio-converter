@@ -128,6 +128,54 @@ The server will be available at `http://localhost:4040`.
    docker run -p 4040:4040 --env-file=.env audio-service
    ```
 
+### Using Dokploy with Nixpacks
+
+This project is configured to work with [Dokploy](https://dokploy.com/) using Nixpacks for automatic deployment.
+
+#### Requirements
+
+The project includes a `nixpacks.toml` configuration file that automatically installs FFmpeg during the build process.
+
+#### Environment Variables
+
+Configure the following environment variables in your Dokploy deployment:
+
+```env
+# Required
+API_KEY=your_secret_api_key_here
+
+# Optional
+PORT=4040
+CORS_ALLOW_ORIGINS=*
+
+# Transcription (optional)
+ENABLE_TRANSCRIPTION=true
+TRANSCRIPTION_PROVIDER=openai
+OPENAI_API_KEY=your_openai_key_here
+OPENAI_API_URL=https://api.openai.com  # Use custom proxy like LiteLLM
+GROQ_API_KEY=your_groq_key_here
+TRANSCRIPTION_LANGUAGE=en
+
+# S3 Storage (optional)
+ENABLE_S3_STORAGE=true
+S3_ENDPOINT=your_s3_endpoint
+S3_ACCESS_KEY=your_access_key
+S3_SECRET_KEY=your_secret_key
+S3_BUCKET_NAME=audio-files
+S3_REGION=us-east-1
+S3_USE_SSL=true
+S3_URL_EXPIRATION=24h
+```
+
+#### Deployment Steps
+
+1. Connect your Git repository to Dokploy
+2. Select "Nixpacks" as the build provider
+3. Configure the environment variables above
+4. Deploy the application
+
+The `nixpacks.toml` file ensures that FFmpeg is installed automatically during the build process.
+
 ## API Usage
 
 ### Authentication

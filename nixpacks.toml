@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ['ffmpeg']
+
+[phases.build]
+cmd = 'go build -o main .'
+
+[start]
+cmd = './main'

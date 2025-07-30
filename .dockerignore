@@ -1,3 +1,12 @@
 main
-
 .env
+.git
+.gitignore
+*.md
+Dockerfile
+docker-compose.yaml
+docker_build.sh
+.vscode
+.idea
+*.log
+tmp/
