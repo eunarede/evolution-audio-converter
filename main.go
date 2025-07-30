@@ -371,11 +371,13 @@ func transcribeWithOpenAI(audioData []byte, language string) (*TranscriptionResu
 	}
 	io.Copy(part, file)
 
-	// Adicionar modelo e idioma
+	// Adicionar modelo e configurações para obter dados mais ricos
 	writer.WriteField("model", "whisper-1")
 	if language != "" {
 		writer.WriteField("language", language)
 	}
+	writer.WriteField("response_format", "verbose_json") // Para obter timestamps se disponível
+	writer.WriteField("timestamp_granularities[]", "word")
 
 	writer.Close()
 
@@ -399,16 +401,40 @@ func transcribeWithOpenAI(audioData []byte, language string) (*TranscriptionResu
 	}
 
 	var result struct {
-		Text string `json:"text"`
+		Text  string `json:"text"`
+		Words []struct {
+			Word  string  `json:"word"`
+			Start float64 `json:"start"`
+			End   float64 `json:"end"`
+		} `json:"words,omitempty"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	return &TranscriptionResult{
+	// Converter words para o formato padrão
+	words := make([]TranscriptionWord, len(result.Words))
+	for i, word := range result.Words {
+		words[i] = TranscriptionWord{
+			Word:  word.Word,
+			Start: word.Start,
+			End:   word.End,
+		}
+	}
+
+	transcriptionResult := &TranscriptionResult{
 		Text:     result.Text,
+		Words:    words,
 		Provider: "openai",
-	}, nil
+	}
+
+	// Calcular word count se words estiver disponível
+	if len(words) > 0 {
+		wordCount := len(words)
+		transcriptionResult.WordCount = &wordCount
+	}
+
+	return transcriptionResult, nil
 }
 
 func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult, error) {
@@ -455,7 +481,7 @@ func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult
 	if language != "" {
 		writer.WriteField("language", language)
 	}
-	writer.WriteField("response_format", "json")
+	writer.WriteField("response_format", "verbose_json") // Para obter dados mais ricos
 	writer.WriteField("temperature", "0.0") // mais preciso
 
 	writer.Close()
@@ -480,16 +506,40 @@ func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult
 	}
 
 	var result struct {
-		Text string `json:"text"`
+		Text  string `json:"text"`
+		Words []struct {
+			Word  string  `json:"word"`
+			Start float64 `json:"start"`
+			End   float64 `json:"end"`
+		} `json:"words,omitempty"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	return &TranscriptionResult{
+	// Converter words para o formato padrão
+	words := make([]TranscriptionWord, len(result.Words))
+	for i, word := range result.Words {
+		words[i] = TranscriptionWord{
+			Word:  word.Word,
+			Start: word.Start,
+			End:   word.End,
+		}
+	}
+
+	transcriptionResult := &TranscriptionResult{
 		Text:     result.Text,
+		Words:    words,
 		Provider: "groq",
-	}, nil
+	}
+
+	// Calcular word count se words estiver disponível
+	if len(words) > 0 {
+		wordCount := len(words)
+		transcriptionResult.WordCount = &wordCount
+	}
+
+	return transcriptionResult, nil
 }
 
 func transcribeWithCloudflare(audioData []byte, language string) (*TranscriptionResult, error) {
@@ -501,10 +551,8 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 		return nil, errors.New("Cloudflare API URL not configured")
 	}
 
-	// Se nenhum idioma foi especificado, use o padrão
-	if language == "" {
-		language = defaultTranscriptionLanguage
-	}
+	// Nota: O parâmetro language é ignorado pelo Cloudflare Workers AI
+	// O modelo @cf/openai/whisper detecta automaticamente o idioma
 
 	// Construir URL completa - suporta tanto Workers AI direto quanto AI Gateway
 	var url string
@@ -516,18 +564,49 @@ func transcribeWithCloudflare(audioData []byte, language string) (*Transcription
 		url = strings.TrimSuffix(cloudflareAPIURL, "/") + "/@cf/openai/whisper"
 	}
 
-	// O Cloudflare AI aceita dados de áudio diretamente como binary
-	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
+	// O Cloudflare Workers AI precisa do áudio em formato compatível
+	// Vamos salvar como arquivo temporário e enviar como multipart/form-data
+	tempFile, err := os.CreateTemp("", "audio-cf-*.ogg")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tempFile.Name())
+
+	if _, err := tempFile.Write(audioData); err != nil {
+		return nil, err
+	}
+	tempFile.Close()
+
+	// Criar multipart form data para o Cloudflare
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// Adicionar o arquivo de áudio
+	file, err := os.Open(tempFile.Name())
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	part, err := writer.CreateFormFile("file", "audio.ogg")
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return nil, err
+	}
+
+	writer.Close()
+
+	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
 	}
 
 	// Headers necessários para o Cloudflare AI
 	req.Header.Set("Authorization", "Bearer "+cloudflareAPIKey)
-	req.Header.Set("Content-Type", "application/octet-stream")
-
-	// Note: Cloudflare Workers AI @cf/openai/whisper não suporta parâmetro language
-	// O modelo detecta automaticamente o idioma do áudio
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
