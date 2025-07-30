@@ -1,4 +1,5 @@
 main
+out
 .env
 .git
 .gitignore
@@ -10,3 +11,4 @@ docker_build.sh
 .idea
 *.log
 tmp/
+nixpacks.toml.alternative

@@ -170,9 +170,11 @@ S3_URL_EXPIRATION=24h
 #### Deployment Steps
 
 1. Connect your Git repository to Dokploy
-2. Select "Nixpacks" as the build provider
+2. Select "Nixpacks" as the build provider (or "Docker" for maximum compatibility)
 3. Configure the environment variables above
 4. Deploy the application
+
+**Note**: If you encounter FFmpeg-related errors with Nixpacks, switch to Docker build provider for better compatibility. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more details.
 
 The `nixpacks.toml` file ensures that FFmpeg is installed automatically during the build process.
 

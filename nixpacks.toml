@@ -1,8 +1,16 @@
+[providers]
+go = "1.22"
+
 [phases.setup]
-nixPkgs = ['ffmpeg', 'go']
+nixPkgs = ["ffmpeg", "pkg-config", "bash"]
 
 [phases.build]
-cmd = 'go build -o out .'
+cmd = '''
+  echo "🔧 Building application..."
+  go version
+  go build -o out .
+  chmod +x start.sh
+'''
 
 [start]
-cmd = './out'
+cmd = "./start.sh"

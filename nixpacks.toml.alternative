@@ -1,0 +1,14 @@
+# Configuração alternativa para Nixpacks
+# Se a configuração principal não funcionar, tente renomear este arquivo para nixpacks.toml
+
+[phases.setup]
+nixPkgs = ["ffmpeg"]
+
+[phases.build]
+cmd = "go build -o main ."
+
+[start]
+cmd = "./main"
+
+[variables]
+CGO_ENABLED = "0"
