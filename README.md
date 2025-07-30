@@ -121,18 +121,35 @@ The service supports multiple transcription providers:
 ### Cloudflare AI Gateway
 - **Provider**: `cloudflare`
 - **Model**: `@cf/openai/whisper`
-- **Requirements**: `CLOUDFLARE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`
+- **Requirements**: `CLOUDFLARE_API_KEY`
+- **Optional**: `CLOUDFLARE_API_URL` for AI Gateway, `CLOUDFLARE_ACCOUNT_ID` for direct Workers AI
 - **Features**: 
   - Serverless transcription
   - No file size limits
   - Direct binary audio input
   - Cost: $0.00045 per audio minute
+  - Support for AI Gateway with caching, analytics, and rate limiting
+
+#### Cloudflare Setup Options:
+
+**Option 1: Direct Workers AI** (Simpler)
+```env
+CLOUDFLARE_API_KEY=your_token_here
+CLOUDFLARE_ACCOUNT_ID=your_account_id_here
+# CLOUDFLARE_API_URL will be auto-generated
+```
+
+**Option 2: AI Gateway** (Advanced - with caching, analytics)
+```env
+CLOUDFLARE_API_KEY=your_token_here
+CLOUDFLARE_API_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/workers-ai
+```
 
 To use Cloudflare AI Gateway:
 1. Sign up for a [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
 2. Go to AI > Workers AI in the dashboard
 3. Create a Workers AI API Token
-4. Copy your Account ID
+4. (Optional) Set up AI Gateway for caching and analytics
 5. Set `TRANSCRIPTION_PROVIDER=cloudflare` in your environment
 
 ## Running the Project
@@ -188,7 +205,8 @@ OPENAI_API_KEY=your_openai_key_here
 OPENAI_API_URL=https://api.openai.com  # Use custom proxy like LiteLLM
 GROQ_API_KEY=your_groq_key_here
 CLOUDFLARE_API_KEY=your_cloudflare_api_key_here
-CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here  # For direct Workers AI
+CLOUDFLARE_API_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/workers-ai  # For AI Gateway
 TRANSCRIPTION_LANGUAGE=en
 
 # S3 Storage (optional)

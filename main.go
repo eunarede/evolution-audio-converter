@@ -43,6 +43,7 @@ var (
 	groqAPIKey                   string
 	cloudflareAPIKey             string
 	cloudflareAccountID          string
+	cloudflareAPIURL             string
 	defaultTranscriptionLanguage string
 	enableS3Storage              bool
 	s3Endpoint                   string
@@ -92,6 +93,13 @@ func init() {
 	groqAPIKey = os.Getenv("GROQ_API_KEY")
 	cloudflareAPIKey = os.Getenv("CLOUDFLARE_API_KEY")
 	cloudflareAccountID = os.Getenv("CLOUDFLARE_ACCOUNT_ID")
+	cloudflareAPIURL = os.Getenv("CLOUDFLARE_API_URL")
+	if cloudflareAPIURL == "" {
+		// Fallback para URL padrão do Workers AI se não especificado
+		if cloudflareAccountID != "" {
+			cloudflareAPIURL = fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/ai/run", cloudflareAccountID)
+		}
+	}
 	defaultTranscriptionLanguage = os.Getenv("TRANSCRIPTION_LANGUAGE")
 
 	// Configuração do S3
@@ -466,8 +474,8 @@ func transcribeWithCloudflare(audioData []byte, language string) (string, error)
 		return "", errors.New("Cloudflare API key not configured")
 	}
 	
-	if cloudflareAccountID == "" {
-		return "", errors.New("Cloudflare Account ID not configured")
+	if cloudflareAPIURL == "" {
+		return "", errors.New("Cloudflare API URL not configured")
 	}
 
 	// Se nenhum idioma foi especificado, use o padrão
@@ -475,8 +483,15 @@ func transcribeWithCloudflare(audioData []byte, language string) (string, error)
 		language = defaultTranscriptionLanguage
 	}
 
-	// URL da API do Cloudflare Workers AI
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/ai/run/@cf/openai/whisper", cloudflareAccountID)
+	// Construir URL completa - suporta tanto Workers AI direto quanto AI Gateway
+	var url string
+	if strings.Contains(cloudflareAPIURL, "@cf/openai/whisper") {
+		// URL já contém o modelo (AI Gateway format)
+		url = cloudflareAPIURL
+	} else {
+		// URL base, adicionar o modelo (Workers AI direto)
+		url = strings.TrimSuffix(cloudflareAPIURL, "/") + "/@cf/openai/whisper"
+	}
 
 	// O Cloudflare AI aceita dados de áudio diretamente como binary
 	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
