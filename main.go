@@ -34,6 +34,7 @@ type TranscriptionResult struct {
 	Words     []TranscriptionWord    `json:"words,omitempty"`
 	VTT       string                 `json:"vtt,omitempty"`
 	Provider  string                 `json:"provider"`
+	Language  string                 `json:"language,omitempty"` // Idioma detectado ou especificado
 	Extra     map[string]interface{} `json:"extra,omitempty"`
 }
 
@@ -401,8 +402,9 @@ func transcribeWithOpenAI(audioData []byte, language string) (*TranscriptionResu
 	}
 
 	var result struct {
-		Text  string `json:"text"`
-		Words []struct {
+		Text     string `json:"text"`
+		Language string `json:"language,omitempty"` // Idioma detectado ou especificado
+		Words    []struct {
 			Word  string  `json:"word"`
 			Start float64 `json:"start"`
 			End   float64 `json:"end"`
