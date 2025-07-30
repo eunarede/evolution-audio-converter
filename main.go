@@ -39,6 +39,7 @@ var (
 	enableTranscription          bool
 	transcriptionProvider        string
 	openaiAPIKey                 string
+	openaiAPIURL                 string
 	groqAPIKey                   string
 	defaultTranscriptionLanguage string
 	enableS3Storage              bool
@@ -82,6 +83,10 @@ func init() {
 	enableTranscription = os.Getenv("ENABLE_TRANSCRIPTION") == "true"
 	transcriptionProvider = os.Getenv("TRANSCRIPTION_PROVIDER")
 	openaiAPIKey = os.Getenv("OPENAI_API_KEY")
+	openaiAPIURL = os.Getenv("OPENAI_API_URL")
+	if openaiAPIURL == "" {
+		openaiAPIURL = "https://api.openai.com/v1" // fallback padrão
+	}
 	groqAPIKey = os.Getenv("GROQ_API_KEY")
 	defaultTranscriptionLanguage = os.Getenv("TRANSCRIPTION_LANGUAGE")
 
@@ -318,7 +323,7 @@ func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
 	}
 	tempFile.Close()
 
-	url := "https://api.openai.com/v1/audio/transcriptions"
+	url := openaiAPIURL + "/audio/transcriptions"
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
