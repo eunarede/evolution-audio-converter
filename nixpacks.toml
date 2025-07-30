@@ -2,7 +2,7 @@
 nixPkgs = ['ffmpeg', 'go']
 
 [phases.build]
-cmd = 'go build -o main .'
+cmd = 'go build -o out .'
 
 [start]
-cmd = './main'
+cmd = './out'
