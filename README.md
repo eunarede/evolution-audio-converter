@@ -129,6 +129,7 @@ The service supports multiple transcription providers:
   - Direct binary audio input
   - Cost: $0.00045 per audio minute
   - Support for AI Gateway with caching, analytics, and rate limiting
+  - **Rich response data**: text, word count, word-level timestamps, VTT subtitles
 
 #### Cloudflare Setup Options:
 
@@ -300,6 +301,8 @@ curl -X POST \
 
 ### Response Format
 
+#### Audio Processing Response
+
 With S3 storage disabled (default):
 
 ```json
@@ -307,7 +310,24 @@ With S3 storage disabled (default):
   "duration": 120,
   "audio": "UklGR... (base64 of the file)",
   "format": "ogg",
-  "transcription": "Transcribed text here..." // if requested
+  "transcription": {
+    "text": "Transcribed text here...",
+    "provider": "cloudflare",
+    "word_count": 25,
+    "words": [
+      {
+        "word": "Hello",
+        "start": 0.0,
+        "end": 0.5
+      },
+      {
+        "word": "world",
+        "start": 0.6,
+        "end": 1.0
+      }
+    ],
+    "vtt": "WEBVTT\n\n00:00.000 --> 00:01.000\nHello world"
+  }
 }
 ```
 
@@ -317,6 +337,48 @@ With S3 storage enabled:
 {
   "duration": 120,
   "url": "https://your-s3-endpoint/bucket/file.ogg?signature...",
+  "format": "ogg",
+  "transcription": {
+    "text": "Transcribed text here...",
+    "provider": "cloudflare"
+  }
+}
+```
+
+#### Transcription-Only Response (`/transcribe` endpoint)
+
+When using Cloudflare provider, returns complete transcription data:
+
+```json
+{
+  "text": "Hello world, this is a test recording.",
+  "provider": "cloudflare", 
+  "word_count": 8,
+  "words": [
+    {
+      "word": "Hello",
+      "start": 0.0,
+      "end": 0.5
+    },
+    {
+      "word": "world",
+      "start": 0.6,
+      "end": 1.0
+    }
+  ],
+  "vtt": "WEBVTT\n\n00:00.000 --> 00:00.500\nHello\n\n00:00.600 --> 00:01.000\nworld"
+}
+```
+
+**Transcription Response Fields:**
+- `text` (string): The complete transcribed text
+- `provider` (string): Which provider was used (openai, groq, cloudflare)
+- `word_count` (number): Total number of words (Cloudflare only)
+- `words` (array): Word-level timestamps (Cloudflare only)
+  - `word` (string): Individual word
+  - `start` (number): Start time in seconds
+  - `end` (number): End time in seconds
+- `vtt` (string): WebVTT subtitle format (Cloudflare only)
   "format": "ogg",
   "transcription": "Transcribed text here..." // if requested
 }

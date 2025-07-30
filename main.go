@@ -27,6 +27,23 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
+// TranscriptionResult representa o resultado completo de uma transcrição
+type TranscriptionResult struct {
+	Text      string                 `json:"text"`
+	WordCount *int                   `json:"word_count,omitempty"`
+	Words     []TranscriptionWord    `json:"words,omitempty"`
+	VTT       string                 `json:"vtt,omitempty"`
+	Provider  string                 `json:"provider"`
+	Extra     map[string]interface{} `json:"extra,omitempty"`
+}
+
+// TranscriptionWord representa uma palavra individual com timestamps
+type TranscriptionWord struct {
+	Word  string  `json:"word"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+}
+
 var (
 	apiKey     string
 	httpClient = &http.Client{}
@@ -293,9 +310,9 @@ func getInputData(c *gin.Context) ([]byte, error) {
 	return nil, errors.New("no file, base64 or URL provided")
 }
 
-func transcribeAudio(audioData []byte, language string) (string, error) {
+func transcribeAudio(audioData []byte, language string) (*TranscriptionResult, error) {
 	if !enableTranscription {
-		return "", errors.New("transcription is not enabled")
+		return nil, errors.New("transcription is not enabled")
 	}
 
 	// Se nenhum idioma foi especificado, use o padrão do .env
@@ -311,13 +328,13 @@ func transcribeAudio(audioData []byte, language string) (string, error) {
 	case "cloudflare":
 		return transcribeWithCloudflare(audioData, language)
 	default:
-		return "", errors.New("invalid transcription provider")
+		return nil, errors.New("invalid transcription provider")
 	}
 }
 
-func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
+func transcribeWithOpenAI(audioData []byte, language string) (*TranscriptionResult, error) {
 	if openaiAPIKey == "" {
-		return "", errors.New("OpenAI API key not configured")
+		return nil, errors.New("OpenAI API key not configured")
 	}
 
 	// Se nenhum idioma foi especificado, use o padrão
@@ -328,12 +345,12 @@ func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
 	// Salvar temporariamente o arquivo
 	tempFile, err := os.CreateTemp("", "audio-*.ogg")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer os.Remove(tempFile.Name())
 
 	if _, err := tempFile.Write(audioData); err != nil {
-		return "", err
+		return nil, err
 	}
 	tempFile.Close()
 
@@ -344,13 +361,13 @@ func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
 	// Adicionar o arquivo
 	file, err := os.Open(tempFile.Name())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer file.Close()
 
 	part, err := writer.CreateFormFile("file", "audio.ogg")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	io.Copy(part, file)
 
@@ -364,7 +381,7 @@ func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
 
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+openaiAPIKey)
@@ -372,28 +389,32 @@ func transcribeWithOpenAI(audioData []byte, language string) (string, error) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("erro na API OpenAI (status %d): %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("erro na API OpenAI (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result struct {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return result.Text, nil
+	return &TranscriptionResult{
+		Text:     result.Text,
+		Provider: "openai",
+	}, nil
+}
 }
 
-func transcribeWithGroq(audioData []byte, language string) (string, error) {
+func transcribeWithGroq(audioData []byte, language string) (*TranscriptionResult, error) {
 	if groqAPIKey == "" {
-		return "", errors.New("Groq API key not configured")
+		return nil, errors.New("Groq API key not configured")
 	}
 
 	// Se nenhum idioma foi especificado, use o padrão
@@ -404,12 +425,12 @@ func transcribeWithGroq(audioData []byte, language string) (string, error) {
 	// Salvar temporariamente o arquivo
 	tempFile, err := os.CreateTemp("", "audio-*.ogg")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer os.Remove(tempFile.Name())
 
 	if _, err := tempFile.Write(audioData); err != nil {
-		return "", err
+		return nil, err
 	}
 	tempFile.Close()
 
@@ -420,13 +441,13 @@ func transcribeWithGroq(audioData []byte, language string) (string, error) {
 	// Adicionar o arquivo
 	file, err := os.Open(tempFile.Name())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer file.Close()
 
 	part, err := writer.CreateFormFile("file", "audio.ogg")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	io.Copy(part, file)
 
@@ -442,7 +463,7 @@ func transcribeWithGroq(audioData []byte, language string) (string, error) {
 
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+groqAPIKey)
@@ -450,32 +471,36 @@ func transcribeWithGroq(audioData []byte, language string) (string, error) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("erro na API Groq (status %d): %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("erro na API Groq (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result struct {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return result.Text, nil
+	return &TranscriptionResult{
+		Text:     result.Text,
+		Provider: "groq",
+	}, nil
+}
 }
 
-func transcribeWithCloudflare(audioData []byte, language string) (string, error) {
+func transcribeWithCloudflare(audioData []byte, language string) (*TranscriptionResult, error) {
 	if cloudflareAPIKey == "" {
-		return "", errors.New("Cloudflare API key not configured")
+		return nil, errors.New("Cloudflare API key not configured")
 	}
 	
 	if cloudflareAPIURL == "" {
-		return "", errors.New("Cloudflare API URL not configured")
+		return nil, errors.New("Cloudflare API URL not configured")
 	}
 
 	// Se nenhum idioma foi especificado, use o padrão
@@ -496,7 +521,7 @@ func transcribeWithCloudflare(audioData []byte, language string) (string, error)
 	// O Cloudflare AI aceita dados de áudio diretamente como binary
 	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Headers necessários para o Cloudflare AI
@@ -512,18 +537,25 @@ func transcribeWithCloudflare(audioData []byte, language string) (string, error)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("erro na API Cloudflare (status %d): %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("erro na API Cloudflare (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result struct {
 		Result struct {
-			Text string `json:"text"`
+			Text      string  `json:"text"`
+			WordCount *int    `json:"word_count,omitempty"`
+			Words     []struct {
+				Word  string  `json:"word"`
+				Start float64 `json:"start"`
+				End   float64 `json:"end"`
+			} `json:"words,omitempty"`
+			VTT string `json:"vtt,omitempty"`
 		} `json:"result"`
 		Success bool `json:"success"`
 		Errors  []struct {
@@ -533,17 +565,36 @@ func transcribeWithCloudflare(audioData []byte, language string) (string, error)
 	}
 	
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !result.Success {
 		if len(result.Errors) > 0 {
-			return "", fmt.Errorf("erro na API Cloudflare: %s", result.Errors[0].Message)
+			return nil, fmt.Errorf("erro na API Cloudflare: %s", result.Errors[0].Message)
 		}
-		return "", errors.New("erro desconhecido na API Cloudflare")
+		return nil, errors.New("erro desconhecido na API Cloudflare")
 	}
 
-	return result.Result.Text, nil
+	// Converter words para o formato padrão
+	words := make([]TranscriptionWord, len(result.Result.Words))
+	for i, word := range result.Result.Words {
+		words[i] = TranscriptionWord{
+			Word:  word.Word,
+			Start: word.Start,
+			End:   word.End,
+		}
+	}
+
+	transcriptionResult := &TranscriptionResult{
+		Text:      result.Result.Text,
+		WordCount: result.Result.WordCount,
+		Words:     words,
+		VTT:       result.Result.VTT,
+		Provider:  "cloudflare",
+	}
+
+	return transcriptionResult, nil
+}
 }
 
 func uploadToS3(data []byte, format string) (string, error) {
@@ -716,9 +767,7 @@ func transcribeOnly(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"transcription": transcription,
-	})
+	c.JSON(http.StatusOK, transcription)
 }
 
 func main() {
