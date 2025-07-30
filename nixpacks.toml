@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['ffmpeg']
+nixPkgs = ['ffmpeg', 'go']
 
 [phases.build]
 cmd = 'go build -o main .'
