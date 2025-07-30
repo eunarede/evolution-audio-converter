@@ -41,6 +41,8 @@ var (
 	openaiAPIKey                 string
 	openaiAPIURL                 string
 	groqAPIKey                   string
+	cloudflareAPIKey             string
+	cloudflareAccountID          string
 	defaultTranscriptionLanguage string
 	enableS3Storage              bool
 	s3Endpoint                   string
@@ -88,6 +90,8 @@ func init() {
 		openaiAPIURL = "https://api.openai.com/v1" // fallback padrão
 	}
 	groqAPIKey = os.Getenv("GROQ_API_KEY")
+	cloudflareAPIKey = os.Getenv("CLOUDFLARE_API_KEY")
+	cloudflareAccountID = os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 	defaultTranscriptionLanguage = os.Getenv("TRANSCRIPTION_LANGUAGE")
 
 	// Configuração do S3
@@ -296,6 +300,8 @@ func transcribeAudio(audioData []byte, language string) (string, error) {
 		return transcribeWithOpenAI(audioData, language)
 	case "groq":
 		return transcribeWithGroq(audioData, language)
+	case "cloudflare":
+		return transcribeWithCloudflare(audioData, language)
 	default:
 		return "", errors.New("invalid transcription provider")
 	}
@@ -453,6 +459,76 @@ func transcribeWithGroq(audioData []byte, language string) (string, error) {
 	}
 
 	return result.Text, nil
+}
+
+func transcribeWithCloudflare(audioData []byte, language string) (string, error) {
+	if cloudflareAPIKey == "" {
+		return "", errors.New("Cloudflare API key not configured")
+	}
+	
+	if cloudflareAccountID == "" {
+		return "", errors.New("Cloudflare Account ID not configured")
+	}
+
+	// Se nenhum idioma foi especificado, use o padrão
+	if language == "" {
+		language = defaultTranscriptionLanguage
+	}
+
+	// URL da API do Cloudflare Workers AI
+	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/ai/run/@cf/openai/whisper", cloudflareAccountID)
+
+	// O Cloudflare AI aceita dados de áudio diretamente como binary
+	req, err := http.NewRequest("POST", url, bytes.NewReader(audioData))
+	if err != nil {
+		return "", err
+	}
+
+	// Headers necessários para o Cloudflare AI
+	req.Header.Set("Authorization", "Bearer "+cloudflareAPIKey)
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	// Adicionar parâmetros de idioma se especificado
+	if language != "" {
+		q := req.URL.Query()
+		q.Add("language", language)
+		req.URL.RawQuery = q.Encode()
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("erro na API Cloudflare (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Result struct {
+			Text string `json:"text"`
+		} `json:"result"`
+		Success bool `json:"success"`
+		Errors  []struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if !result.Success {
+		if len(result.Errors) > 0 {
+			return "", fmt.Errorf("erro na API Cloudflare: %s", result.Errors[0].Message)
+		}
+		return "", errors.New("erro desconhecido na API Cloudflare")
+	}
+
+	return result.Result.Text, nil
 }
 
 func uploadToS3(data []byte, format string) (string, error) {

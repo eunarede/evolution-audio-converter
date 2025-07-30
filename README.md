@@ -102,6 +102,39 @@ When S3 storage is enabled, the response will include a `url` instead of the `au
 
 If S3 upload fails, the service automatically falls back to base64 encoding.
 
+## Transcription Providers
+
+The service supports multiple transcription providers:
+
+### OpenAI Whisper
+- **Provider**: `openai`
+- **Model**: `whisper-1`
+- **Requirements**: `OPENAI_API_KEY`
+- **Custom URL**: Support for proxies via `OPENAI_API_URL`
+
+### Groq
+- **Provider**: `groq`
+- **Model**: `whisper-large-v3-turbo`
+- **Requirements**: `GROQ_API_KEY`
+- **Features**: Fast and cost-effective
+
+### Cloudflare AI Gateway
+- **Provider**: `cloudflare`
+- **Model**: `@cf/openai/whisper`
+- **Requirements**: `CLOUDFLARE_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`
+- **Features**: 
+  - Serverless transcription
+  - No file size limits
+  - Direct binary audio input
+  - Cost: $0.00045 per audio minute
+
+To use Cloudflare AI Gateway:
+1. Sign up for a [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
+2. Go to AI > Workers AI in the dashboard
+3. Create a Workers AI API Token
+4. Copy your Account ID
+5. Set `TRANSCRIPTION_PROVIDER=cloudflare` in your environment
+
 ## Running the Project
 
 ### Locally
@@ -150,10 +183,12 @@ CORS_ALLOW_ORIGINS=*
 
 # Transcription (optional)
 ENABLE_TRANSCRIPTION=true
-TRANSCRIPTION_PROVIDER=openai
+TRANSCRIPTION_PROVIDER=openai  # openai, groq, or cloudflare
 OPENAI_API_KEY=your_openai_key_here
 OPENAI_API_URL=https://api.openai.com  # Use custom proxy like LiteLLM
 GROQ_API_KEY=your_groq_key_here
+CLOUDFLARE_API_KEY=your_cloudflare_api_key_here
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
 TRANSCRIPTION_LANGUAGE=en
 
 # S3 Storage (optional)
